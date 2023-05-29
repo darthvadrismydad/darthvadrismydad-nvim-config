@@ -4,8 +4,7 @@ lsp.preset("recommended")
 
 lsp.ensure_installed({
     'tsserver',
-    'eslint',
-    'rust_analyzer'
+    'eslint'
 })
 
 local cmp = require('cmp')
@@ -29,7 +28,6 @@ end)
 lsp.format_on_save({
   servers = {
     ['lua_ls'] = {'lua'},
-    ['rust_analyzer'] = {'rust'},
     ['tsserver'] = {'js', 'ts', 'tsx', 'jsx'}
   }
 })
