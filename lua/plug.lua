@@ -56,5 +56,6 @@ return require('packer').startup({function(use)
         'nvim-lua/plenary.nvim', 
         'mfussenegger/nvim-dap' 
     } }
+    use { "ellisonleao/glow.nvim", config = function() require("glow").setup() end }
     end
 })
