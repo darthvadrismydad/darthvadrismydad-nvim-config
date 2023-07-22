@@ -150,7 +150,15 @@ require('lazy').setup({
   'theprimeagen/harpoon',
   'mbbill/undotree',
   'github/copilot.vim',
+  {
+    "folke/zen-mode.nvim",
+    opts = {
+      window = {
+        width = 200
 
+      }
+    }
+  }
 }, {})
 
 -- [[ Setting options ]]
