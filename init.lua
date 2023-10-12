@@ -112,9 +112,14 @@ require('lazy').setup({
     'lukas-reineke/indent-blankline.nvim',
     -- Enable `lukas-reineke/indent-blankline.nvim`
     -- See `:help indent_blankline.txt`
-    opts = {
-      char = '┊',
-      show_trailing_blankline_indent = false,
+    main = "ibl",
+    ibl = {
+      config = {
+        indent = {
+          char = '┊',
+          show_trailing_blankline_indent = false,
+        }
+      }
     },
   },
 
@@ -146,7 +151,7 @@ require('lazy').setup({
     build = ':TSUpdate',
   },
 
-  require 'kickstart.plugins.autoformat',
+  --require 'kickstart.plugins.autoformat',
   'theprimeagen/harpoon',
   'mbbill/undotree',
   'github/copilot.vim',
@@ -157,6 +162,14 @@ require('lazy').setup({
         width = 200
 
       }
+    }
+  },
+  'sindrets/diffview.nvim',
+  {
+    'nmassardot/nvim-preview-svg',
+    opts = {
+      browser = 'Arc',
+      args = false
     }
   }
 }, {})
@@ -217,6 +230,29 @@ vim.keymap.set('n', '<C-d>', '<C-d>zz')
 vim.keymap.set('n', '<C-u>', '<C-u>zz')
 vim.keymap.set('n', '<Leader>pv', vim.cmd.Ex);
 vim.keymap.set('n', '<Leader>ff', vim.cmd.Format);
+
+local mark = require("harpoon.mark")
+local ui = require("harpoon.ui")
+
+vim.keymap.set("n", "<leader>m", mark.add_file)
+vim.keymap.set("n", "<C-e>", ui.toggle_quick_menu)
+
+vim.keymap.set("n", "<C-h>", function() ui.nav_file(1) end)
+vim.keymap.set("n", "<C-t>", function() ui.nav_file(2) end)
+vim.keymap.set("n", "<C-n>", function() ui.nav_file(3) end)
+vim.keymap.set("n", "<C-s>", function() ui.nav_file(4) end)
+
+function FormatWithJQ()
+  local command = "jq ."
+  local buffer_content = vim.fn.join(vim.fn.getline(1, "$"), "\n")
+  local formatted_content = vim.fn.system(command, buffer_content)
+  local formatted_str = vim.fn.split(formatted_content, "\n")
+  -- luacheck: ignore param-type-mismatch
+  vim.fn.setline(1, formatted_str)
+end
+
+vim.cmd([[command! FormatWithJQ lua FormatWithJQ()]])
+vim.keymap.set('n', '<Leader>jq', ':FormatWithJQ<CR>')
 
 -- [[ Highlight on yank ]]
 -- See `:help vim.highlight.on_yank()`
