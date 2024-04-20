@@ -155,7 +155,6 @@ require('lazy').setup({
   --require 'kickstart.plugins.autoformat',
   'theprimeagen/harpoon',
   'mbbill/undotree',
-  'github/copilot.vim',
   {
     "folke/zen-mode.nvim",
     opts = {
