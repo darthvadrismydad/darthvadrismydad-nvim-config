@@ -1,6 +1,6 @@
--- Neovim from-scratch config
--- Features: LSP (Lua & TypeScript), Telescope, Git signs, dark theme (tokyonight)
--- Drop this file at: ~/.config/nvim/init.lua
+-- Neovim from-scratch config (v2)
+-- Adds: vtsls (TS), ESLint on save, nvim-cmp completion, Telescope LSP mappings
+-- Drop at: ~/.config/nvim/init.lua
 
 -----------------------------------------------------------
 -- 0) Leader and basic settings
@@ -47,8 +47,7 @@ require("lazy").setup({
       {
         "nvim-telescope/telescope-fzf-native.nvim",
         build = function()
-          local has_make = (vim.fn.executable("make") == 1)
-          if has_make then
+          if vim.fn.executable("make") == 1 then
             vim.cmd([[silent! !make]])
           end
         end,
@@ -56,6 +55,7 @@ require("lazy").setup({
     },
     config = function()
       local telescope = require("telescope")
+      local builtin = require("telescope.builtin")
       telescope.setup({
         defaults = {
           mappings = {
@@ -65,7 +65,7 @@ require("lazy").setup({
       })
       pcall(telescope.load_extension, "fzf")
 
-      local builtin = require("telescope.builtin")
+      -- General Telescope keymaps
       local map = vim.keymap.set
       map("n", "<leader>ff", builtin.find_files, { desc = "Telescope: find files" })
       map("n", "<leader>fg", builtin.live_grep,  { desc = "Telescope: live grep" })
@@ -73,6 +73,12 @@ require("lazy").setup({
       map("n", "<leader>fh", builtin.help_tags,  { desc = "Telescope: help tags" })
       map("n", "<leader>fs", builtin.grep_string,{ desc = "Telescope: word under cursor" })
       map("n", "<leader>fr", builtin.resume,     { desc = "Telescope: resume" })
+
+      -- LSP-flavored Telescope
+      map("n", "<leader>sd", builtin.lsp_definitions,       { desc = "Telescope: LSP definitions" })
+      map("n", "<leader>sr", builtin.lsp_references,        { desc = "Telescope: LSP references" })
+      map("n", "<leader>ss", builtin.lsp_document_symbols,  { desc = "Telescope: document symbols" })
+      map("n", "<leader>sS", builtin.lsp_workspace_symbols, { desc = "Telescope: workspace symbols" })
     end,
   },
 
@@ -123,6 +129,53 @@ require("lazy").setup({
   { "williamboman/mason.nvim", config = true },
   { "williamboman/mason-lspconfig.nvim" },
 
+  -- Completion (nvim-cmp + sources + snippets)
+  {
+    "hrsh7th/nvim-cmp",
+    dependencies = {
+      "hrsh7th/cmp-nvim-lsp",
+      "hrsh7th/cmp-buffer",
+      "hrsh7th/cmp-path",
+      "saadparwaiz1/cmp_luasnip",
+      "L3MON4D3/LuaSnip",
+      "rafamadriz/friendly-snippets",
+    },
+    config = function()
+      local cmp = require("cmp")
+      local luasnip = require("luasnip")
+      require("luasnip.loaders.from_vscode").lazy_load()
+
+      cmp.setup({
+        snippet = { expand = function(args) luasnip.lsp_expand(args.body) end },
+        mapping = cmp.mapping.preset.insert({
+          ["<C-Space>"] = cmp.mapping.complete(),
+          ["<CR>"] = cmp.mapping.confirm({ select = true }),
+          ["<Tab>"] = cmp.mapping(function(fallback)
+            if cmp.visible() then cmp.select_next_item()
+            elseif luasnip.expand_or_jumpable() then luasnip.expand_or_jump()
+            else fallback() end
+          end, {"i","s"}),
+          ["<S-Tab>"] = cmp.mapping(function(fallback)
+            if cmp.visible() then cmp.select_prev_item()
+            elseif luasnip.jumpable(-1) then luasnip.jump(-1)
+            else fallback() end
+          end, {"i","s"}),
+        }),
+        sources = cmp.config.sources({ { name = "nvim_lsp" }, { name = "path" } }, { { name = "buffer" } }),
+      })
+    end,
+  },
+
+  -- ESLint helper (provides :EslintFixAll)
+  {
+    "MunifTanjim/eslint.nvim",
+    config = function()
+      require("eslint").setup({
+        -- you can pass opts here if needed
+      })
+    end,
+  },
+
   -- Optional: nice LSP UI (floating windows, code actions)
   { "folke/trouble.nvim", dependencies = { "nvim-tree/nvim-web-devicons" }, opts = {} },
 }, {
@@ -135,35 +188,30 @@ require("lazy").setup({
 vim.cmd.colorscheme("tokyonight-night")
 
 -----------------------------------------------------------
--- 4) LSP setup (Lua & TypeScript) using new API (Nvim 0.11+)
+-- 4) LSP setup (Lua, TypeScript) using new API (Nvim 0.11+)
 -----------------------------------------------------------
--- NOTE: The legacy `require('lspconfig')` setup() framework is deprecated on Nvim 0.11+.
--- Use the core API: vim.lsp.config() + vim.lsp.enable().
--- Docs: :help lspconfig-nvim-0.11 and :help lsp
-
+-- NOTE: Use core vim.lsp.config/enable instead of legacy lspconfig setup framework
 local mason_lsp = require("mason-lspconfig")
 
--- Ensure servers are installed via mason (installer only)
-mason_lsp.setup({ ensure_installed = { "lua_ls", "tsserver" } })
+-- Ensure language servers installed via Mason
+mason_lsp.setup({ ensure_installed = { "lua_ls", "vtsls", "eslint" } })
 
 -- Diagnostic UX
-vim.diagnostic.config({
-  float = { border = "rounded" },
-  severity_sort = true,
-  update_in_insert = false,
-})
-
+vim.diagnostic.config({ float = { border = "rounded" }, severity_sort = true, update_in_insert = false })
 local signs = { Error = " ", Warn = " ", Hint = " ", Info = " " }
 for type, icon in pairs(signs) do
   local hl = "DiagnosticSign" .. type
   vim.fn.sign_define(hl, { text = icon, texthl = hl, numhl = "" })
 end
 
--- on_attach sets buffer-local keymaps after a server attaches
+-- Completion capabilities advertised to LSP
+local cmp_caps_ok, cmp_nvim_lsp = pcall(require, "cmp_nvim_lsp")
+local capabilities = vim.lsp.protocol.make_client_capabilities()
+if cmp_caps_ok then capabilities = cmp_nvim_lsp.default_capabilities(capabilities) end
+
+-- on_attach: LSP keymaps + peek definition
 local on_attach = function(_, bufnr)
-  local map = function(mode, lhs, rhs, desc)
-    vim.keymap.set(mode, lhs, rhs, { buffer = bufnr, desc = desc })
-  end
+  local map = function(mode, lhs, rhs, desc) vim.keymap.set(mode, lhs, rhs, { buffer = bufnr, desc = desc }) end
 
   -- Core LSP mappings
   map("n", "K", vim.lsp.buf.hover, "LSP: hover docs")
@@ -180,15 +228,25 @@ local on_attach = function(_, bufnr)
   map("n", "[d", vim.diagnostic.goto_prev, "Prev diagnostic")
   map("n", "]d", vim.diagnostic.goto_next, "Next diagnostic")
 
-  -- Trouble toggles (optional)
-  map("n", "<leader>xx", require("trouble").toggle, "Trouble: toggle")
-  map("n", "<leader>xd", function() require("trouble").toggle("document_diagnostics") end, "Trouble: document diags")
-  map("n", "<leader>xw", function() require("trouble").toggle("workspace_diagnostics") end, "Trouble: workspace diags")
+  -- Peek definition
+  local function peek_definition()
+    local params = vim.lsp.util.make_position_params()
+    vim.lsp.buf_request(0, "textDocument/definition", params, function(err, result)
+      if err or not result or vim.tbl_isempty(result) then
+        vim.notify("No definition found", vim.log.levels.INFO)
+        return
+      end
+      local location = (vim.tbl_islist(result) and result[1]) or result
+      vim.lsp.util.preview_location(location)
+    end)
+  end
+  map("n", "<leader>pd", peek_definition, "LSP: peek definition")
 end
 
--- Define configs with the new API
+-- Server configurations
 vim.lsp.config("lua_ls", {
   on_attach = on_attach,
+  capabilities = capabilities,
   settings = {
     Lua = {
       runtime = { version = "LuaJIT" },
@@ -199,23 +257,64 @@ vim.lsp.config("lua_ls", {
   },
 })
 
-vim.lsp.config("tsserver", {
+vim.lsp.config("vtsls", {
   on_attach = on_attach,
-  -- Add per-server settings here if needed
+  capabilities = capabilities,
+  settings = {
+    typescript = {
+      inlayHints = { parameterNames = { enabled = "literals" } },
+      preferences = { includePackageJsonAutoImports = "on" },
+    },
+    javascript = {
+      inlayHints = { parameterNames = { enabled = "literals" } },
+    },
+  },
 })
 
--- Enable servers (autostarts on matching filetypes, and attaches to open buffers)
-vim.lsp.enable("lua_ls")
-vim.lsp.enable("tsserver")
+vim.lsp.config("eslint", {
+  on_attach = on_attach,
+  capabilities = capabilities,
+})
+
+-- Filetype-based enabling (lazy attach)
+local ft_enable = vim.api.nvim_create_augroup("LspEnableByFiletype", { clear = true })
+vim.api.nvim_create_autocmd("FileType", {
+  group = ft_enable,
+  pattern = { "lua" },
+  callback = function() vim.lsp.enable("lua_ls") end,
+})
+vim.api.nvim_create_autocmd("FileType", {
+  group = ft_enable,
+  pattern = { "typescript", "typescriptreact", "javascript", "javascriptreact" },
+  callback = function()
+    vim.lsp.enable("vtsls")
+    vim.lsp.enable("eslint")
+  end,
+})
+
+-- ESLint on save (uses eslint.nvim's :EslintFixAll then format via LSP)
+local eslint_group = vim.api.nvim_create_augroup("EslintOnSave", { clear = true })
+vim.api.nvim_create_autocmd("BufWritePre", {
+  group = eslint_group,
+  pattern = { "*.ts", "*.tsx", "*.js", "*.jsx" },
+  callback = function()
+    -- Apply ESLint fixes if available
+    if vim.fn.exists(":EslintFixAll") == 2 then
+      vim.cmd("silent! EslintFixAll")
+    end
+    -- Then format via LSP if a server offers it
+    pcall(vim.lsp.buf.format, { async = false })
+  end,
+})
 
 -----------------------------------------------------------
 -- 5) Convenience general keymaps
 -----------------------------------------------------------
 local map = vim.keymap.set
-map("n", "<leader>qq", ":qa<CR>", { desc = "Quit all" })
-map("n", "<leader>ww", ":w<CR>",  { desc = "Write buffer" })
 map("n", "<leader>pv", ":Ex<CR>", { desc = "Open netrw Ex" })
 map("n", "<leader>e", vim.diagnostic.open_float, { desc = "Show diagnostics for line" })
+map("n", "<leader>qq", ":qa<CR>", { desc = "Quit all" })
+map("n", "<leader>ww", ":w<CR>",  { desc = "Write buffer" })
 
 -- Better window navigation
 map("n", "<C-h>", "<C-w>h", { desc = "Move to left window" })
@@ -230,10 +329,5 @@ map("n", "<C-l>", "<C-w>l", { desc = "Move to right window" })
 local yank_group = vim.api.nvim_create_augroup("YankHighlight", { clear = true })
 vim.api.nvim_create_autocmd("TextYankPost", {
   group = yank_group,
-  callback = function()
-    vim.highlight.on_yank({ higroup = "IncSearch", timeout = 150 })
-  end,
+  callback = function() vim.highlight.on_yank({ higroup = "IncSearch", timeout = 150 }) end,
 })
-
--- Show which-key style hints if you later add that plugin (placeholder)
--- This config keeps things lean; you can layer cmp, which-key, etc., later.
