@@ -71,7 +71,7 @@ require("lazy").setup({
       -- General Telescope keymaps
       local map = vim.keymap.set
       map("n", "<leader>sf", function()
-        return builtin.find_files({ hidden = true })
+        return builtin.find_files({ hidden = false })
       end, { desc = "Telescope: find files" })
       map("n", "<leader>sg", builtin.live_grep, { desc = "Telescope: live grep" })
       map("n", "<leader>sb", builtin.buffers, { desc = "Telescope: buffers" })
@@ -179,14 +179,10 @@ require("lazy").setup({
     end,
   },
 
-  -- ESLint helper (provides :EslintFixAll)
   {
-    "MunifTanjim/eslint.nvim",
-    config = function()
-      require("eslint").setup({
-        -- you can pass opts here if needed
-      })
-    end,
+    "ThePrimeagen/harpoon",
+    branch = "harpoon2",
+    dependencies = { { "nvim-lua/plenary.nvim" } }
   },
 
   -- Optional: nice LSP UI (floating windows, code actions)
@@ -344,3 +340,40 @@ vim.api.nvim_create_autocmd("TextYankPost", {
   group = yank_group,
   callback = function() vim.highlight.on_yank({ higroup = "IncSearch", timeout = 150 }) end,
 })
+
+local harpoon = require("harpoon")
+
+-- Harpoon!
+harpoon:setup()
+
+map("n", "<leader>a", function() harpoon:list():add() end)
+map("n", "<C-e>", function() harpoon.ui:toggle_quick_menu(harpoon:list()) end)
+map("n", "<C-h>", function() harpoon:list():select(1) end)
+map("n", "<C-t>", function() harpoon:list():select(2) end)
+map("n", "<C-n>", function() harpoon:list():select(3) end)
+map("n", "<C-s>", function() harpoon:list():select(4) end)
+
+-- Toggle previous & next buffers stored within Harpoon list
+map("n", "<C-S-P>", function() harpoon:list():prev() end)
+map("n", "<C-S-N>", function() harpoon:list():next() end)
+
+-- basic telescope configuration
+local conf = require("telescope.config").values
+local function toggle_telescope(harpoon_files)
+  local file_paths = {}
+  for _, item in ipairs(harpoon_files.items) do
+    table.insert(file_paths, item.value)
+  end
+
+  require("telescope.pickers").new({}, {
+    prompt_title = "Harpoon",
+    finder = require("telescope.finders").new_table({
+      results = file_paths,
+    }),
+    previewer = conf.file_previewer({}),
+    sorter = conf.generic_sorter({}),
+  }):find()
+end
+
+map("n", "<C-e>", function() toggle_telescope(harpoon:list()) end,
+  { desc = "Open harpoon window" })
