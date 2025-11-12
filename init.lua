@@ -301,21 +301,6 @@ vim.api.nvim_create_autocmd("FileType", {
   end,
 })
 
--- ESLint on save (uses eslint.nvim's :EslintFixAll then format via LSP)
-local eslint_group = vim.api.nvim_create_augroup("EslintOnSave", { clear = true })
-vim.api.nvim_create_autocmd("BufWritePre", {
-  group = eslint_group,
-  pattern = { "*.ts", "*.tsx", "*.js", "*.jsx" },
-  callback = function()
-    -- Apply ESLint fixes if available
-    if vim.fn.exists(":EslintFixAll") == 2 then
-      vim.cmd("silent! EslintFixAll")
-    end
-    -- Then format via LSP if a server offers it
-    pcall(vim.lsp.buf.format, { async = false })
-  end,
-})
-
 -----------------------------------------------------------
 -- 5) Convenience general keymaps
 -----------------------------------------------------------
