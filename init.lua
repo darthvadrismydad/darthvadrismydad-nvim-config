@@ -129,6 +129,23 @@ require("lazy").setup({
     end,
   },
 
+  -- Statusline with git info
+  {
+    "nvim-lualine/lualine.nvim",
+    dependencies = { "nvim-tree/nvim-web-devicons" },
+    opts = {
+      options = { globalstatus = true },
+      sections = {
+        lualine_a = { "mode" },
+        lualine_b = { "branch", "diff", "diagnostics" },
+        lualine_c = { { "filename", path = 1 } },
+        lualine_x = { "encoding", "filetype" },
+        lualine_y = { "progress" },
+        lualine_z = { "location" },
+      },
+    },
+  },
+
   -- LSP & tooling
   { "neovim/nvim-lspconfig" },
   { "williamboman/mason.nvim",          config = true },
@@ -147,8 +164,71 @@ require("lazy").setup({
     },
     config = function()
       local cmp = require("cmp")
+      local compare = require("cmp.config.compare")
       local luasnip = require("luasnip")
       require("luasnip.loaders.from_vscode").lazy_load()
+
+      local function deprioritize_text(entry1, entry2)
+        local text_kind = cmp.lsp.CompletionItemKind.Text
+        local kind1 = entry1:get_kind()
+        local kind2 = entry2:get_kind()
+        if kind1 == text_kind and kind2 ~= text_kind then
+          return false
+        elseif kind2 == text_kind and kind1 ~= text_kind then
+          return true
+        end
+      end
+
+      local priority_kinds = {
+        [cmp.lsp.CompletionItemKind.Field] = 0,
+        [cmp.lsp.CompletionItemKind.Property] = 0,
+        [cmp.lsp.CompletionItemKind.Method] = 0,
+      }
+      local function prioritize_fields_methods(entry1, entry2)
+        local p1 = priority_kinds[entry1:get_kind()] or math.huge
+        local p2 = priority_kinds[entry2:get_kind()] or math.huge
+        if p1 ~= p2 then
+          return p1 < p2
+        end
+      end
+
+      local source_priority = {
+        ["nvim_lsp:ts_ls"] = 0,
+        ["nvim_lsp:tsserver"] = 0,
+        ["nvim_lsp:typescript-language-server"] = 0,
+        nvim_lsp = 1,
+        path = 5,
+        buffer = 10,
+      }
+      local function prefer_ts_sources(entry1, entry2)
+        local function get_name(entry)
+          if entry.source.get_debug_name then
+            return entry.source:get_debug_name()
+          end
+          return entry.source.name
+        end
+        local p1 = source_priority[get_name(entry1)] or math.huge
+        local p2 = source_priority[get_name(entry2)] or math.huge
+        if p1 ~= p2 then
+          return p1 < p2
+        end
+      end
+
+      local ts_client_names = {
+        tsserver = true,
+        ts_ls = true,
+        ["typescript-language-server"] = true,
+      }
+      local function filter_ts_text(entry, _)
+        local source = entry.source and entry.source.source
+        local client = source and source.client
+        if client and ts_client_names[client.name] then
+          if entry:get_kind() == cmp.lsp.CompletionItemKind.Text then
+            return false
+          end
+        end
+        return true
+      end
 
       cmp.setup({
         snippet = { expand = function(args) luasnip.lsp_expand(args.body) end },
@@ -174,7 +254,35 @@ require("lazy").setup({
             end
           end, { "i", "s" }),
         }),
-        sources = cmp.config.sources({ { name = "nvim_lsp" }, { name = "path" } }, { { name = "buffer" } }),
+        sources = cmp.config.sources({
+          { name = "nvim_lsp", entry_filter = filter_ts_text },
+          { name = "path" },
+        }, {
+          { name = "buffer", keyword_length = 3 },
+        }),
+        formatting = {
+          fields = { "kind", "abbr", "menu" },
+          format = function(entry, vim_item)
+            local debug_name = entry.source.get_debug_name and entry.source:get_debug_name() or entry.source.name
+            vim_item.menu = string.format("[%s]", debug_name)
+            return vim_item
+          end,
+        },
+        sorting = {
+          comparators = {
+            prefer_ts_sources,
+            prioritize_fields_methods,
+            deprioritize_text,
+            compare.offset,
+            compare.exact,
+            compare.score,
+            compare.recently_used,
+            compare.locality,
+            compare.kind,
+            compare.length,
+            compare.order,
+          },
+        },
       })
     end,
   },
@@ -291,7 +399,7 @@ vim.api.nvim_create_autocmd("FileType", {
   group = ft_enable,
   pattern = { "typescript", "typescriptreact", "javascript", "javascriptreact" },
   callback = function()
-    vim.lsp.enable("typescript-language-server")
+    vim.lsp.enable("ts_ls")
   end,
 })
 
