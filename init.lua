@@ -1,5 +1,5 @@
 -- Neovim from-scratch config (v2)
--- Adds: vtsls (TS), ESLint on save, nvim-cmp completion, Telescope LSP mappings
+-- Adds: vtsls (TS), nvim-cmp completion, Telescope LSP mappings
 -- Drop at: ~/.config/nvim/init.lua
 
 -----------------------------------------------------------
@@ -203,7 +203,7 @@ vim.cmd.colorscheme("tokyonight-night")
 local mason_lsp = require("mason-lspconfig")
 
 -- Ensure language servers installed via Mason
-mason_lsp.setup({ ensure_installed = { "lua_ls", "vtsls", "eslint" } })
+mason_lsp.setup({ ensure_installed = { "lua_ls", "ts_ls" } })
 
 -- Diagnostic UX
 vim.diagnostic.config({ float = { border = "rounded" }, severity_sort = true, update_in_insert = false })
@@ -266,7 +266,7 @@ vim.lsp.config("lua_ls", {
   },
 })
 
-vim.lsp.config("vtsls", {
+vim.lsp.config("ts_ls", {
   on_attach = on_attach,
   capabilities = capabilities,
   settings = {
@@ -280,11 +280,6 @@ vim.lsp.config("vtsls", {
   },
 })
 
-vim.lsp.config("eslint", {
-  on_attach = on_attach,
-  capabilities = capabilities,
-})
-
 -- Filetype-based enabling (lazy attach)
 local ft_enable = vim.api.nvim_create_augroup("LspEnableByFiletype", { clear = true })
 vim.api.nvim_create_autocmd("FileType", {
@@ -296,8 +291,7 @@ vim.api.nvim_create_autocmd("FileType", {
   group = ft_enable,
   pattern = { "typescript", "typescriptreact", "javascript", "javascriptreact" },
   callback = function()
-    vim.lsp.enable("vtsls")
-    vim.lsp.enable("eslint")
+    vim.lsp.enable("typescript-language-server")
   end,
 })
 
