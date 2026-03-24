@@ -70,9 +70,7 @@ require("lazy").setup({
 
       -- General Telescope keymaps
       local map = vim.keymap.set
-      map("n", "<leader>sf", function()
-        return builtin.find_files({ hidden = false })
-      end, { desc = "Telescope: find files" })
+      map("n", "<leader>sf", builtin.find_files, { desc = "Telescope: find files" })
       map("n", "<leader>sg", builtin.live_grep, { desc = "Telescope: live grep" })
       map("n", "<leader>sb", builtin.buffers, { desc = "Telescope: buffers" })
       map("n", "<leader>sh", builtin.help_tags, { desc = "Telescope: help tags" })
@@ -84,6 +82,8 @@ require("lazy").setup({
       map("n", "<leader>sr", builtin.lsp_references, { desc = "Telescope: LSP references" })
       map("n", "<leader>ss", builtin.lsp_document_symbols, { desc = "Telescope: document symbols" })
       map("n", "<leader>sS", builtin.lsp_workspace_symbols, { desc = "Telescope: workspace symbols" })
+
+      map("n", "<leader>q", builtin.diagnostics, { desc = "Telescope: diagnostics" })
     end,
   },
 
@@ -431,7 +431,11 @@ vim.api.nvim_create_autocmd("TextYankPost", {
 local harpoon = require("harpoon")
 
 -- Harpoon!
-harpoon:setup()
+harpoon:setup({
+  settings = {
+    save_on_toggle = true,
+  },
+})
 
 map("n", "<leader>a", function() harpoon:list():add() end)
 map("n", "<C-e>", function() harpoon.ui:toggle_quick_menu(harpoon:list()) end)
@@ -446,19 +450,38 @@ map("n", "<C-S-N>", function() harpoon:list():next() end)
 
 -- basic telescope configuration
 local conf = require("telescope.config").values
-local function toggle_telescope(harpoon_files)
-  local file_paths = {}
-  for _, item in ipairs(harpoon_files.items) do
-    table.insert(file_paths, item.value)
+local function make_finder(harpoon_files)
+  local entries = {}
+  for i = 1, #harpoon_files.items do
+    local item = harpoon_files.items[i]
+    if item then
+      table.insert(entries, { display = item.value, value = item.value, ordinal = item.value, harpoon_index = i })
+    end
   end
+  return require("telescope.finders").new_table({
+    results = entries,
+    entry_maker = function(entry)
+      return entry
+    end,
+  })
+end
 
+local function toggle_telescope(harpoon_files)
   require("telescope.pickers").new({}, {
     prompt_title = "Harpoon",
-    finder = require("telescope.finders").new_table({
-      results = file_paths,
-    }),
+    finder = make_finder(harpoon_files),
     previewer = conf.file_previewer({}),
     sorter = conf.generic_sorter({}),
+    attach_mappings = function(prompt_bufnr, tmap)
+      tmap("n", "dd", function()
+        local state = require("telescope.actions.state")
+        local selected = state.get_selected_entry()
+        local picker = state.get_current_picker(prompt_bufnr)
+        harpoon:list():remove_at(selected.harpoon_index)
+        picker:refresh(make_finder(harpoon:list()))
+      end)
+      return true
+    end,
   }):find()
 end
 
