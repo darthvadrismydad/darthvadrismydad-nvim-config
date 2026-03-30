@@ -44,7 +44,7 @@ require("lazy").setup({
   -- Telescope (fuzzy finder)
   {
     "nvim-telescope/telescope.nvim",
-    tag = "0.1.6",
+    tag = "v0.2.1",
     dependencies = {
       "nvim-lua/plenary.nvim",
       {
@@ -88,22 +88,29 @@ require("lazy").setup({
   },
 
   -- Treesitter (better syntax highlighting)
-  {
-    "nvim-treesitter/nvim-treesitter",
-    build = function()
-      pcall(require("nvim-treesitter.install").update({ with_sync = true }))
-    end,
+{
+   'nvim-treesitter/nvim-treesitter',
+    dependencies = {
+        'nvim-treesitter/nvim-treesitter-context',
+    },
+    branch = 'main',
+    lazy = false,
+    build = ':TSUpdate',
     config = function()
-      require("nvim-treesitter.configs").setup({
-        ensure_installed = {
-          "lua", "vim", "vimdoc", "javascript", "typescript", "tsx",
-          "json", "html", "css", "bash", "markdown", "markdown_inline"
-        },
-        highlight = { enable = true },
-        indent = { enable = false },
-      })
+        local treesitter = require('nvim-treesitter')
+        treesitter.install({
+            'c',
+            'cpp',
+            'glsl',
+            'lua',
+            'meson',
+            'python',
+            'vim',
+            'vimdoc',
+            'query',
+        })
     end,
-  },
+ },
 
   -- Git integration (inline hunks, blame, etc.)
   {
